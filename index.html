@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EVAC//SYS — Smart Emergency Evacuation Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+:root{--bg:#06080f;--panel:#0d1220;--card:#111827;--border:rgba(0,212,255,.10);--green:#00ff88;--green-dim:rgba(0,255,136,.13);--cyan:#00d4ff;--red:#ff3b30;--amber:#ffb800;--text:#e8f4ff;--muted:#7a9bbf;--dim:#2a3f55;--font-hud:'Orbitron',monospace;--font-mono:'Space Mono',monospace;--font-body:'Outfit',sans-serif;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:13px;overflow:hidden;-webkit-font-smoothing:antialiased;}
+button,select,input{font-family:inherit;cursor:pointer;}
+/* LOADING */
+#loading{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .5s ease,visibility .5s;}
+#loading.gone{opacity:0;visibility:hidden;pointer-events:none;}
+.ld-logo{font-family:var(--font-hud);font-size:30px;font-weight:900;letter-spacing:.15em;color:var(--green);text-shadow:0 0 40px rgba(0,255,136,.6);animation:glow 1.4s ease-in-out infinite;}
+.ld-sub{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.25em;text-transform:uppercase;}
+.ld-bar{width:260px;height:2px;background:var(--card);border-radius:2px;overflow:hidden;}
+.ld-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));animation:fill 1.4s ease-out forwards;}
+@keyframes fill{from{width:0}to{width:100%}}
+@keyframes glow{0%,100%{text-shadow:0 0 30px rgba(0,255,136,.5)}50%{text-shadow:0 0 70px rgba(0,255,136,.9),0 0 120px rgba(0,255,136,.3)}}
+/* SHELL */
+#app{display:grid;grid-template-rows:52px 1fr;grid-template-columns:240px 1fr 300px;height:100vh;opacity:0;transition:opacity .5s;}
+#app.on{opacity:1;}
+/* TOPBAR */
+#topbar{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);z-index:10;}
+.t-logo{font-family:var(--font-hud);font-size:13px;font-weight:900;letter-spacing:.12em;color:var(--green);white-space:nowrap;text-shadow:0 0 14px rgba(0,255,136,.4);}
+.t-logo span{color:var(--dim);font-weight:400;}
+.t-sep{width:1px;height:26px;background:var(--border);flex-shrink:0;}
+.t-spacer{flex:1;}
+.preset-row{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+.preset-lbl{font-family:var(--font-mono);font-size:9px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;}
+.btn-preset{padding:3px 9px;font-size:9px;background:var(--card);border:1px solid var(--border);color:var(--muted);border-radius:3px;font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;transition:all .15s;white-space:nowrap;}
+.btn-preset:hover{border-color:var(--amber);color:var(--amber);}
+.status-pill{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 12px;min-width:200px;}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse-dot 1.5s ease-in-out infinite;flex-shrink:0;}
+@keyframes pulse-dot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.7}}
+.stxt{font-family:var(--font-mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;}
+.stxt.safe{color:var(--green)}.stxt.danger{color:var(--red);animation:blink .8s step-end infinite}.stxt.clear{color:var(--cyan)}
+@keyframes blink{50%{opacity:.3}}
+.timer-wrap{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:3px 10px;}
+.timer-lbl{font-family:var(--font-mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;}
+.timer-val{font-family:var(--font-hud);font-size:17px;font-weight:700;color:var(--cyan);letter-spacing:.04em;min-width:52px;}
+.timer-val.warn{color:var(--amber)}.timer-val.crit{color:var(--red);animation:blink .5s step-end infinite}
+.btn-t{padding:3px 7px;font-size:9px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:3px;font-family:var(--font-mono);transition:all .15s;}
+.btn-t:hover{border-color:var(--cyan);color:var(--cyan);}
+.btn-top{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:4px;font-size:10px;font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;border:1px solid;transition:all .15s;white-space:nowrap;}
+.btn-builder{background:rgba(0,212,255,.07);border-color:rgba(0,212,255,.3);color:var(--cyan);}
+.btn-builder:hover{background:rgba(0,212,255,.18);}
+.btn-reset{background:rgba(255,59,48,.07);border-color:rgba(255,59,48,.3);color:var(--red);}
+.btn-reset:hover{background:rgba(255,59,48,.18);}
+/* SIDEBAR */
+#sidebar{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sb-sec{padding:12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.sb-title{font-family:var(--font-hud);font-size:8px;font-weight:700;color:var(--dim);letter-spacing:.2em;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:6px;}
+.sb-title::before{content:'';display:block;width:3px;height:11px;background:var(--green);border-radius:2px;}
+.ctrl-lbl{font-size:10px;color:var(--muted);font-family:var(--font-mono);margin-bottom:4px;display:block;}
+select{width:100%;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%237a9bbf'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;padding-right:26px;transition:all .15s;}
+select:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(0,255,136,.1);}
+.mt6{margin-top:6px;}
+.legend{display:flex;flex-direction:column;gap:5px;}
+.leg-row{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted);}
+.leg-dot{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+.lg-start{background:rgba(0,212,255,.25);border:1.5px solid var(--cyan);}
+.lg-path{background:rgba(0,255,136,.2);border:1.5px solid var(--green);}
+.lg-exit{background:rgba(0,255,136,.08);border:1.5px solid #00cc66;}
+.lg-hazard{background:rgba(255,59,48,.2);border:1.5px solid var(--red);}
+.lg-stair{background:rgba(255,184,0,.15);border:1.5px solid var(--amber);}
+.lg-normal{background:var(--card);border:1.5px solid var(--border);}
+#node-list{flex:1;overflow-y:auto;padding:6px;}
+#node-list::-webkit-scrollbar{width:3px;}
+#node-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.nl-floor{font-family:var(--font-mono);font-size:8px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;padding:5px 6px 3px;border-bottom:1px solid var(--border);margin-bottom:3px;margin-top:4px;}
+.nl-item{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all .12s;}
+.nl-item:hover{background:rgba(255,255,255,.04);border-color:var(--border);}
+.nl-item.haz{background:rgba(255,59,48,.05);border-color:rgba(255,59,48,.2);}
+.nl-item.exit-node{border-color:rgba(0,255,136,.12);}
+.nl-item.start-node{border-color:rgba(0,212,255,.25);}
+.nl-icon{font-size:11px;flex-shrink:0;}
+.nl-name{flex:1;font-size:11px;}
+.nl-hbadge{font-size:11px;}
+/* MAIN */
+#main{background:var(--bg);overflow:hidden;display:flex;flex-direction:column;position:relative;}
+.map-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:2;}
+.map-title{font-family:var(--font-hud);font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;}
+#bg-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;}
+#map-scroll{flex:1;overflow:auto;padding:24px 16px;display:flex;align-items:flex-start;justify-content:center;position:relative;z-index:1;}
+#map-scroll::-webkit-scrollbar{width:4px;height:4px;}
+#map-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+#svg-zoom-wrap{transition:transform 0.55s cubic-bezier(0.25,0.8,0.25,1);transform-origin:center top;will-change:transform;display:inline-block;}
+.floor-rect-hit{fill:transparent;cursor:zoom-in;}
+.floor-active-ring{fill:none;stroke:rgba(0,212,255,.75);stroke-width:3;pointer-events:none;animation:ring-pulse 1.8s ease-in-out infinite;}
+@keyframes ring-pulse{0%,100%{stroke-opacity:.75;stroke-width:3}50%{stroke-opacity:1;stroke-width:4.5}}
+.zoom-badge{font-family:'Orbitron',monospace;font-size:8px;font-weight:700;fill:var(--cyan);text-anchor:middle;pointer-events:none;animation:ring-pulse 1.8s ease-in-out infinite;}
+/* SVG MAP */
+.floor-rect{fill:rgba(13,18,32,.75);stroke-width:1.5;}
+.floor-rect.b1{stroke:rgba(255,184,0,.4);}
+.floor-rect.gf{stroke:rgba(0,212,255,.45);}
+.floor-rect.f1,.floor-rect.f2,.floor-rect.f3{stroke:rgba(0,212,255,.25);}
+.floor-label{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;fill:rgba(0,212,255,.5);letter-spacing:.18em;text-transform:uppercase;}
+.edge{stroke:rgba(0,212,255,.18);stroke-width:1.5;fill:none;}
+.edge.on-path{stroke:#00ff88;stroke-width:3;filter:drop-shadow(0 0 4px rgba(0,255,136,.5));}
+.edge.cross{stroke:rgba(255,184,0,.3);stroke-dasharray:7 3;}
+.edge.cross.on-path{stroke:#00ff88;stroke-dasharray:none;}
+.node-g{cursor:pointer;}
+.node-rect{fill:#111827;stroke:rgba(0,212,255,.2);stroke-width:1.5;transition:all .15s;}
+.node-g:hover .node-rect{stroke:var(--cyan);fill:rgba(0,212,255,.08);filter:drop-shadow(0 0 8px rgba(0,212,255,.3));}
+.node-lbl{font-family:'Outfit',sans-serif;font-size:11px;font-weight:500;fill:#c8ddf0;text-anchor:middle;dominant-baseline:middle;pointer-events:none;}
+.node-g.s-start .node-rect{fill:rgba(0,212,255,.12);stroke:var(--cyan);stroke-width:2;filter:drop-shadow(0 0 8px rgba(0,212,255,.4));}
+.node-g.s-exit .node-rect{fill:rgba(0,255,136,.07);stroke:#00cc66;}
+.node-g.s-path .node-rect{fill:rgba(0,255,136,.18);stroke:#00ff88;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(0,255,136,.45));animation:pop .3s ease both;}
+.node-g.s-hazard .node-rect{fill:rgba(255,59,48,.15);stroke:#ff3b30;stroke-width:2;animation:shk .25s ease;}
+.node-g.s-exit-blocked .node-rect{fill:rgba(255,59,48,.15);stroke:#ff3b30;stroke-width:2;}
+.node-g.s-stair .node-rect{stroke:rgba(255,184,0,.4);}
+.node-g.s-start .node-lbl{fill:var(--cyan);}
+.node-g.s-exit .node-lbl{fill:#00cc66;}
+.node-g.s-path .node-lbl{fill:#00ff88;}
+.node-g.s-hazard .node-lbl{fill:#ff3b30;}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.badge-bg-start{fill:var(--cyan);}
+.badge-bg-exit{fill:#00cc66;}
+.badge-txt{font-family:'Orbitron',monospace;font-size:7px;font-weight:700;fill:#06080f;text-anchor:middle;dominant-baseline:middle;pointer-events:none;}
+.step-c{fill:#00ff88;}
+.step-n{font-family:'Orbitron',monospace;font-size:8px;font-weight:700;fill:#06080f;text-anchor:middle;dominant-baseline:middle;pointer-events:none;}
+.haz-emoji{font-size:13px;dominant-baseline:middle;text-anchor:middle;pointer-events:none;}
+/* RIGHT */
+#right{background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab{flex:1;padding:10px;font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);background:transparent;border:none;border-bottom:2px solid transparent;transition:all .15s;}
+.tab.on{color:var(--green);border-bottom-color:var(--green);}
+.tab:hover:not(.on){color:var(--muted);}
+.tab-body{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+.pane{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.pane.on{display:flex;}
+#route-pane{overflow-y:auto;padding:14px;flex:1;}
+#route-pane::-webkit-scrollbar{width:3px;}
+#route-pane::-webkit-scrollbar-thumb{background:var(--border);}
+.r-idle{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:100%;text-align:center;color:var(--muted);padding:20px;}
+.r-idle-icon{font-size:36px;opacity:.35;}
+.r-idle-sub{font-size:10px;color:var(--dim);}
+.r-fail{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;text-align:center;padding:20px;}
+.r-fail-icon{font-size:44px;}
+.r-fail-title{font-family:var(--font-hud);font-size:17px;font-weight:900;color:var(--red);letter-spacing:.1em;animation:blink .8s step-end infinite;}
+.r-fail-sub{font-size:11px;color:var(--muted);line-height:1.6;}
+.r-badge{display:inline-flex;align-items:center;font-family:var(--font-hud);font-size:9px;font-weight:700;color:var(--green);letter-spacing:.1em;background:var(--green-dim);border:1px solid rgba(0,255,136,.3);padding:3px 10px;border-radius:20px;}
+.r-meta{font-size:11px;color:var(--muted);margin-top:4px;}
+.r-meta strong{color:var(--green);}
+.r-steps{margin-top:10px;display:flex;flex-direction:column;}
+.r-step{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:3px;position:relative;animation:step-in .25s ease both;}
+.r-step:hover{background:rgba(255,255,255,.03);}
+@keyframes step-in{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.r-step-connector{position:absolute;left:18px;bottom:-6px;width:2px;height:12px;background:linear-gradient(to bottom,var(--green),transparent);}
+.r-step-icon{font-size:13px;width:20px;text-align:center;flex-shrink:0;}
+.r-step-label{flex:1;font-size:11px;}
+.r-step-floor{font-family:var(--font-mono);font-size:8px;color:var(--dim);}
+.r-step-exit .r-step-label{color:var(--green);font-weight:600;}
+.alt-block{border-top:1px solid var(--border);margin-top:12px;padding-top:10px;}
+.alt-title{font-family:var(--font-mono);font-size:8px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;}
+.alt-row{display:flex;align-items:flex-start;gap:7px;padding:5px 7px;background:var(--card);border-radius:3px;border:1px solid var(--border);font-size:10px;margin-bottom:4px;}
+.alt-n{width:15px;height:15px;background:rgba(255,255,255,.05);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:8px;color:var(--dim);flex-shrink:0;}
+.alt-path{flex:1;color:var(--muted);line-height:1.4;}
+.alt-exit{color:var(--green);font-family:var(--font-mono);white-space:nowrap;}
+#audit-log{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:2px;}
+#audit-log::-webkit-scrollbar{width:3px;}
+#audit-log::-webkit-scrollbar-thumb{background:var(--border);}
+.alog{display:flex;gap:7px;padding:4px 7px;border-radius:3px;font-size:10px;animation:step-in .2s ease;}
+.alog-t{font-family:var(--font-mono);font-size:8px;color:var(--dim);flex-shrink:0;min-width:50px;}
+.alog-m{flex:1;line-height:1.4;}
+.alog.ok{background:rgba(0,255,136,.03);}.alog.ok .alog-m{color:#00cc6a;}
+.alog.warn{background:rgba(255,184,0,.03);}.alog.warn .alog-m{color:var(--amber);}
+.alog.info .alog-m{color:var(--muted);}
+/* TOAST */
+#toasts{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:6px;z-index:8000;pointer-events:none;}
+.toast{padding:8px 14px;border-radius:6px;font-size:11px;font-family:var(--font-mono);border:1px solid;transform:translateX(120%);transition:transform .3s cubic-bezier(.4,0,.2,1);pointer-events:auto;}
+.toast.show{transform:translateX(0);}
+.toast.ok{background:rgba(0,255,136,.1);border-color:#00cc6a;color:var(--green);}
+.toast.err{background:rgba(255,59,48,.1);border-color:var(--red);color:var(--red);}
+.toast.info{background:rgba(0,212,255,.1);border-color:var(--cyan);color:var(--cyan);}
+.toast.warn{background:rgba(255,184,0,.1);border-color:var(--amber);color:var(--amber);}
+/* BUILDER */
+#builder-modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(6,8,16,.92);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
+#builder-modal.on{display:flex;}
+.bw{background:var(--panel);border:1px solid rgba(0,212,255,.2);border-radius:12px;width:90vw;max-width:960px;height:78vh;display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,212,255,.08);overflow:hidden;}
+.bw-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);}
+.bw-title{font-family:var(--font-hud);font-size:11px;font-weight:700;color:var(--cyan);letter-spacing:.15em;}
+.bw-body{display:grid;grid-template-columns:200px 1fr;flex:1;overflow:hidden;}
+.bw-sb{padding:12px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
+.bw-sb-title{font-family:var(--font-mono);font-size:8px;color:var(--dim);text-transform:uppercase;letter-spacing:.15em;}
+.bw-canvas-wrap{background:var(--bg);position:relative;overflow:hidden;}
+#bcanvas{width:100%;height:100%;}
+.bw-foot{padding:8px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+#b-result{flex:1;font-family:var(--font-mono);font-size:10px;}
+.b-hint{color:var(--dim);}.b-ok{color:var(--green);}.b-fail{color:var(--red);}
+.inp{width:100%;padding:6px 9px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;}
+.inp:focus{border-color:var(--green);}
+.bw-hint{font-size:10px;color:var(--dim);line-height:1.7;}
+.bw-hint strong{color:var(--muted);}
+.btn-sm{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:3px;font-size:10px;font-family:var(--font-mono);letter-spacing:.04em;text-transform:uppercase;border:1px solid;transition:all .15s;}
+.btn-danger{background:rgba(255,59,48,.07);border-color:rgba(255,59,48,.3);color:var(--red);}
+.btn-danger:hover{background:rgba(255,59,48,.18);}
+.btn-sec{background:var(--card);border-color:var(--border);color:var(--muted);}
+.btn-sec:hover{border-color:var(--cyan);color:var(--cyan);}
+@media(max-width:900px){#app{grid-template-columns:1fr;grid-template-rows:52px auto 400px auto;overflow-y:auto;height:auto;min-height:100vh;}body{overflow-y:auto;}#topbar{grid-column:1;flex-wrap:wrap;height:auto;padding:8px 12px;gap:6px;}#sidebar{grid-row:2;border-right:none;border-bottom:1px solid var(--border);}#main{grid-row:3;}#right{grid-row:4;border-left:none;border-top:1px solid var(--border);min-height:280px;}.preset-row{display:none;}}
+  </style>
+</head>
+<body>
+<div id="loading">
+  <div class="ld-logo">EVAC//SYS</div>
+  <div class="ld-sub">Initialising Emergency Operations Module</div>
+  <div class="ld-bar"><div class="ld-fill"></div></div>
+</div>
+<div id="app">
+  <header id="topbar">
+    <div class="t-logo">EVAC<span>//</span>SYS</div>
+    <div class="t-sep"></div>
+    <div class="preset-row">
+      <span class="preset-lbl">Presets:</span>
+      <button class="btn-preset" data-preset="Ground Floor Fire">🔥 GF Fire</button>
+      <button class="btn-preset" data-preset="Exit A Blocked">🚫 Exit A</button>
+      <button class="btn-preset" data-preset="Stairwell Fire">🔥 Stairs</button>
+      <button class="btn-preset" data-preset="Smoke on F2">💨 F2 Smoke</button>
+      <button class="btn-preset" data-preset="Full Lockdown">☠ Lockdown</button>
+    </div>
+    <div class="t-sep"></div>
+    <div class="status-pill"><div class="sdot"></div><span class="stxt clear" id="status-text">SYSTEM READY</span></div>
+    <div class="t-spacer"></div>
+    <div class="timer-wrap">
+      <span class="timer-lbl">Elapsed</span>
+      <span class="timer-val" id="timer-val">00:00</span>
+      <button class="btn-t" id="btn-timer">▶ Start</button>
+      <button class="btn-t" id="btn-timer-r">↺</button>
+    </div>
+    <button class="btn-top btn-builder" id="btn-builder-open">🏗 Builder</button>
+    <button class="btn-top btn-reset" onclick="resetAll()">↺ Reset</button>
+  </header>
+  <aside id="sidebar">
+    <div class="sb-sec">
+      <div class="sb-title">Hazard Controls</div>
+      <label class="ctrl-lbl">Hazard Type</label>
+      <select id="hazard-type">
+        <option value="fire">🔥 Fire</option>
+        <option value="smoke">💨 Smoke</option>
+        <option value="closed">🔒 Closed</option>
+        <option value="exit_blocked">🚫 Exit Blocked</option>
+      </select>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-title">Legend</div>
+      <div class="legend">
+        <div class="leg-row"><div class="leg-dot lg-start"></div>Control Room (Start)</div>
+        <div class="leg-row"><div class="leg-dot lg-path"></div>Evacuation Path</div>
+        <div class="leg-row"><div class="leg-dot lg-exit"></div>Exit</div>
+        <div class="leg-row"><div class="leg-dot lg-hazard"></div>Hazard (blocked)</div>
+        <div class="leg-row"><div class="leg-dot lg-stair"></div>Stairwell</div>
+        <div class="leg-row"><div class="leg-dot lg-normal"></div>Clear Room</div>
+      </div>
+    </div>
+    <div class="sb-sec" style="padding-bottom:6px"><div class="sb-title">All Rooms</div></div>
+    <div id="node-list"></div>
+  </aside>
+  <main id="main">
+    <canvas id="bg-canvas"></canvas>
+    <div class="map-header">
+      <div class="map-title">📐 Building Layout — Click Any Room to Toggle Hazard · <span style="color:var(--cyan);opacity:.7">Click Floor Label to Zoom</span></div>
+      <span style="font-family:var(--font-mono);font-size:9px;color:var(--dim)" id="zoom-indicator">START: Control Room · GF</span>
+    </div>
+    <div id="map-scroll"><div id="svg-zoom-wrap"></div></div>
+  </main>
+  <aside id="right">
+    <div class="tabs">
+      <button class="tab on" onclick="switchTab('route',this)">Route</button>
+      <button class="tab" onclick="switchTab('log',this)">Audit Log</button>
+    </div>
+    <div class="tab-body">
+      <div class="pane on" id="pane-route"><div id="route-pane"></div></div>
+      <div class="pane" id="pane-log"><div id="audit-log"></div></div>
+    </div>
+  </aside>
+</div>
+<div id="builder-modal">
+  <div class="bw">
+    <div class="bw-head">
+      <div class="bw-title">🏗 DYNAMIC BUILDING CREATOR</div>
+      <button class="btn-sm btn-sec" id="btn-builder-close">✕ Close</button>
+    </div>
+    <div class="bw-body">
+      <div class="bw-sb">
+        <div class="bw-sb-title">Mode</div>
+        <select id="b-mode"><option value="add">➕ Add Node</option><option value="link">🔗 Link Nodes</option><option value="del">🗑 Delete Node</option></select>
+        <div class="bw-sb-title">Node Label</div>
+        <input class="inp" id="b-label" type="text" placeholder="e.g. Conference Room"/>
+        <div class="bw-sb-title">Node Type</div>
+        <select id="b-type"><option value="room">Room</option><option value="corridor">Corridor</option><option value="stair">Stairwell</option><option value="exit">Exit</option><option value="control">Control (Start)</option></select>
+        <div class="bw-hint" style="margin-top:4px">1. <strong>Add Node</strong> → click canvas.<br><br>2. <strong>Link Nodes</strong> → click two nodes.<br><br>3. Add <strong>Control</strong> + <strong>Exit</strong> for BFS path.</div>
+        <button class="btn-sm btn-danger" onclick="initBuilder()">🗑 Clear Canvas</button>
+      </div>
+      <div class="bw-canvas-wrap"><svg id="bcanvas"></svg></div>
+    </div>
+    <div class="bw-foot">
+      <span style="font-family:var(--font-mono);font-size:8px;color:var(--dim)">BFS RESULT:</span>
+      <div id="b-result"><span class="b-hint">Add Control + Exit nodes to compute path.</span></div>
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="buildingGraph.js"></script>
+<script>
+const state={hazardNodes:new Set(),hazardEdges:new Set(),hazardTypes:{},selectedHazard:'fire',currentPath:null,evacuationFailed:false,timerRunning:false,timerSeconds:0,timerInterval:null,builder:{nodes:{},edges:[],linkSource:null}};
+function edgeKey(a,b){return[a,b].sort().join('::');}
+function bfs(adj,exits,start,bN,bE){if(bN.has(start))return null;const q=[[start]],v=new Set([start]);while(q.length){const p=q.shift(),c=p[p.length-1];if(exits.has(c))return p;for(const nb of(adj[c]||[])){if(v.has(nb)||bN.has(nb)||bE.has(edgeKey(c,nb)))continue;v.add(nb);q.push([...p,nb]);}}return null;}
+function findAlts(n=3){const ps=[],used=new Set();const opt=bfs(ADJACENCY,EXITS,START_NODE,state.hazardNodes,state.hazardEdges);if(!opt)return[];ps.push(opt);used.add(opt.join('->'));for(let i=1;i<n;i++){const prev=ps[i-1];let f=false;for(let j=1;j<prev.length-1;j++){const ex=new Set([...state.hazardNodes,prev[j]]);const alt=bfs(ADJACENCY,EXITS,START_NODE,ex,state.hazardEdges);if(alt&&!used.has(alt.join('->'))){ ps.push(alt);used.add(alt.join('->'));f=true;break;}}if(!f)break;}return ps;}
+function applyHazard(id,t){state.hazardNodes.add(id);state.hazardTypes[id]=t;logAudit('⚠ Hazard: '+(NODES[id]?.label||id)+' ['+t.toUpperCase()+']','warn');_recalc();renderMap();renderNodeList();}
+function removeHazard(id){const t=state.hazardTypes[id];state.hazardNodes.delete(id);delete state.hazardTypes[id];logAudit('✓ Cleared: '+(NODES[id]?.label||id)+(t?' ['+t.toUpperCase()+']':''),'ok');_recalc();renderMap();renderNodeList();}
+function toggleHazard(id){if(id===START_NODE){showToast('Cannot block the start node.','err');return;}state.hazardNodes.has(id)?removeHazard(id):applyHazard(id,state.selectedHazard);}
+function resetAll(){state.hazardNodes.clear();state.hazardEdges.clear();state.hazardTypes={};stopTimer();state.timerSeconds=0;updateTimer();logAudit('🔄 Reset — all hazards cleared','info');_recalc();renderMap();renderNodeList();showToast('Scenario reset','ok');}
+function applyPreset(name){const p=HAZARD_PRESETS[name];if(!p)return;state.hazardNodes.clear();state.hazardEdges.clear();state.hazardTypes={};p.nodes.forEach(n=>{state.hazardNodes.add(n);state.hazardTypes[n]='fire';});(p.edges||[]).forEach(([a,b])=>state.hazardEdges.add(edgeKey(a,b)));logAudit('📋 Preset: "'+name+'" — '+p.description,'info');_recalc();renderMap();renderNodeList();showToast('Preset: '+name,'info');}
+function _recalc(){const p=bfs(ADJACENCY,EXITS,START_NODE,state.hazardNodes,state.hazardEdges);state.currentPath=p;state.evacuationFailed=!p;renderRoutePanel();}
+
+// Node positions from SVG (cx = x, cy = y = center y of node)
+const ND={
+  Parking:{x:451,y:365,w:85,h:45,l:'Parking'},Electrical:{x:195,y:510,w:140,h:45,l:'Electrical Room'},Generator:{x:366,y:510,w:102,h:45,l:'Generator'},EmergencyExit:{x:536,y:510,w:139,h:45,l:'Emergency Exit'},StairB:{x:729,y:510,w:147,h:45,l:'Stairs B'},
+  Entrance:{x:1357,y:55,w:130,h:45,l:'Main Entrance'},Reception:{x:1357,y:150,w:101,h:45,l:'Reception'},Hall:{x:1357,y:245,w:97,h:45,l:'Main Hall'},Control:{x:970,y:365,w:125,h:45,l:'Control Room'},KitchenG:{x:1125,y:365,w:85,h:45,l:'Kitchen'},WashG:{x:1269,y:365,w:105,h:45,l:'Washroom'},StairG:{x:1419,y:365,w:96,h:45,l:'Stairs GF'},ExitA:{x:1554,y:365,w:74,h:45,l:'Exit A'},ExitB:{x:1676,y:365,w:73,h:45,l:'Exit B'},
+  Lobby1:{x:2333,y:365,w:86,h:45,l:'Lobby 1'},R101:{x:1977,y:510,w:99,h:45,l:'Room 101'},R102:{x:2125,y:510,w:99,h:45,l:'Room 102'},Office:{x:2261,y:510,w:73,h:45,l:'Office'},Wash1:{x:2405,y:510,w:117,h:45,l:'Washroom 1'},Stair1:{x:2561,y:510,w:95,h:45,l:'Stairs F1'},Storage:{x:2702,y:510,w:87,h:45,l:'Storage'},
+  Lobby2:{x:1390,y:510,w:86,h:45,l:'Lobby 2'},R201:{x:1024,y:655,w:99,h:45,l:'Room 201'},R202:{x:1173,y:655,w:99,h:45,l:'Room 202'},Kitchen2:{x:1314,y:655,w:85,h:45,l:'Kitchen'},Wash2:{x:1465,y:655,w:117,h:45,l:'Washroom 2'},Stair2:{x:1621,y:655,w:95,h:45,l:'Stairs F2'},Server:{x:1778,y:655,w:120,h:45,l:'Server Room'},
+  Lobby3:{x:468,y:655,w:86,h:45,l:'Lobby 3'},R301:{x:92,y:775,w:99,h:45,l:'Room 301'},R302:{x:240,y:775,w:99,h:45,l:'Room 302'},R303:{x:389,y:775,w:99,h:45,l:'Room 303'},Wash3:{x:547,y:775,w:117,h:45,l:'Washroom 3'},Stair3:{x:702,y:775,w:95,h:45,l:'Stairs F3'},Balcony3:{x:842,y:775,w:86,h:45,l:'Balcony'},
+};
+const FLOORS_SVG=[
+  {l:'Basement (B1)',x:90,y:318,w:747,h:240,c:'b1'},
+  {l:'Ground Floor',x:872,y:8,w:891,h:405,c:'gf'},
+  {l:'Floor 1',x:1893,y:318,w:888,h:240,c:'f1'},
+  {l:'Floor 2',x:940,y:463,w:933,h:240,c:'f2'},
+  {l:'Floor 3',x:8,y:608,w:913,h:215,c:'f3'},
+];
+const EDGES=[
+  ['StairG','Stair1','cross'],['Stair1','Stair2','cross'],['Stair2','Stair3','cross'],['StairG','StairB','cross'],
+  ['Entrance','Reception'],['Reception','Hall'],
+  ['Hall','Control'],['Hall','KitchenG'],['Hall','WashG'],['Hall','StairG'],['Hall','ExitA'],['Hall','ExitB'],
+  ['Parking','Electrical'],['Parking','Generator'],['Parking','StairB'],['Parking','EmergencyExit'],
+  ['Lobby1','R101'],['Lobby1','R102'],['Lobby1','Office'],['Lobby1','Wash1'],['Lobby1','Storage'],['Lobby1','Stair1'],
+  ['Lobby2','R201'],['Lobby2','R202'],['Lobby2','Kitchen2'],['Lobby2','Wash2'],['Lobby2','Server'],['Lobby2','Stair2'],
+  ['Lobby3','R301'],['Lobby3','R302'],['Lobby3','R303'],['Lobby3','Wash3'],['Lobby3','Stair3'],['Lobby3','Balcony3'],
+];
+function isPathEdge(a,b){if(!state.currentPath)return false;const p=state.currentPath;for(let i=0;i<p.length-1;i++){if((p[i]===a&&p[i+1]===b)||(p[i]===b&&p[i+1]===a))return true;}return false;}
+function nodeStatus(id){if(id===START_NODE)return'start';if(EXITS.has(id)&&state.hazardNodes.has(id))return'exit-blocked';if(EXITS.has(id))return'exit';if(state.hazardNodes.has(id))return'hazard';if(state.currentPath?.includes(id))return'path';if(NODES[id]?.type==='stair')return'stair';return'normal';}
+function hEmoji(t){return{fire:'🔥',smoke:'💨',closed:'🔒',exit_blocked:'🚫'}[t]||'⚠';}
+
+// ── ZOOM STATE ────────────────────────────────────────────
+let zoomedFloor = null; // id of currently zoomed floor, or null
+
+// Floor bounding boxes (with padding for zoom crop)
+const FLOOR_ZOOM = {
+  b1: {x:70,  y:300, w:790, h:270},
+  gf: {x:850, y:0,   w:940, h:430},
+  f1: {x:1870,y:300, w:940, h:270},
+  f2: {x:918, y:445, w:980, h:270},
+  f3: {x:0,   y:590, w:960, h:240},
+};
+
+function toggleFloorZoom(floorId) {
+  const wrap = document.getElementById('svg-zoom-wrap');
+  const scroll = document.getElementById('map-scroll');
+  if (!wrap) return;
+
+  if (zoomedFloor === floorId) {
+    // Zoom out
+    zoomedFloor = null;
+    wrap.style.transform = 'scale(1)';
+    wrap.style.transformOrigin = 'center top';
+    document.getElementById('zoom-indicator').textContent = 'START: Control Room · GF';
+    renderMap(); // re-render to remove active ring
+    return;
+  }
+
+  zoomedFloor = floorId;
+  const fz = FLOOR_ZOOM[floorId];
+  if (!fz) return;
+
+  const PAD = 20, FULL_W = 2788.5 + PAD*2, FULL_H = 831 + PAD*2;
+  const BASE_SCALE = 0.50;
+  const svgW = FULL_W * BASE_SCALE;
+  const svgH = FULL_H * BASE_SCALE;
+  const scrollW = scroll.clientWidth  || 800;
+  const scrollH = scroll.clientHeight || 500;
+
+  // Scale of the SVG viewport → pixel coords
+  const pxPerSVG = BASE_SCALE;
+  const floorPxX = (fz.x + PAD) * pxPerSVG;
+  const floorPxY = (fz.y + PAD) * pxPerSVG;
+  const floorPxW = fz.w * pxPerSVG;
+  const floorPxH = fz.h * pxPerSVG;
+
+  // How much to scale so the floor fills ~85% of the scroll area
+  const zoomX = (scrollW * 0.88) / floorPxW;
+  const zoomY = (scrollH * 0.88) / floorPxH;
+  const zoom  = Math.min(zoomX, zoomY, 3.5); // cap at 3.5x
+
+  // Origin = centre of floor in px coords (relative to svg wrap)
+  const originX = floorPxX + floorPxW / 2;
+  const originY = floorPxY + floorPxH / 2;
+
+  wrap.style.transformOrigin = `${originX}px ${originY}px`;
+  wrap.style.transform = `scale(${zoom})`;
+
+  const floorNames = {b1:'Basement (B1)', gf:'Ground Floor', f1:'Floor 1', f2:'Floor 2', f3:'Floor 3'};
+  document.getElementById('zoom-indicator').textContent = `🔍 Zoomed: ${floorNames[floorId]} — click floor again to zoom out`;
+
+  renderMap(); // re-render to show active ring
+}
+
+function renderMap(){
+  const SCALE=0.50,PAD=20,VW=2788.5+PAD*2,VH=831+PAD*2;
+  let s=`<svg viewBox="${-PAD} ${-PAD} ${VW} ${VH}" width="${VW*SCALE}" height="${VH*SCALE}" xmlns="http://www.w3.org/2000/svg" style="display:block">`;
+
+  // ── Animated background pattern (subtle grid) ──
+  s+=`<defs>
+    <pattern id="mapgrid" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M50 0L0 0 0 50" fill="none" stroke="rgba(0,212,255,0.04)" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="bggrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="rgba(0,20,50,0.0)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.3)"/>
+    </radialGradient>
+  </defs>
+  <rect x="${-PAD}" y="${-PAD}" width="${VW}" height="${VH}" fill="url(#bggrad)"/>
+  <rect x="${-PAD}" y="${-PAD}" width="${VW}" height="${VH}" fill="url(#mapgrid)"/>`;
+
+  // ── Floor clusters ──
+  FLOORS_SVG.forEach(f=>{
+    const isActive = zoomedFloor === f.c;
+    s+=`<rect class="floor-rect ${f.c}" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="10"/>`;
+    // Active zoom ring
+    if(isActive){
+      s+=`<rect class="floor-active-ring" x="${f.x-3}" y="${f.y-3}" width="${f.w+6}" height="${f.h+6}" rx="13"/>`;
+    }
+    // Invisible hit zone for the whole floor label area (top strip)
+    s+=`<rect class="floor-rect-hit" x="${f.x}" y="${f.y}" width="${f.w}" height="32" onclick="toggleFloorZoom('${f.c}')" style="cursor:${isActive?'zoom-out':'zoom-in'}"/>`;
+    s+=`<text class="floor-label" x="${f.x+f.w/2}" y="${f.y+20}" text-anchor="middle" onclick="toggleFloorZoom('${f.c}')" style="cursor:${isActive?'zoom-out':'zoom-in'};pointer-events:all">${f.l}${isActive?' 🔍':' ⊕'}</text>`;
+  });
+
+  // ── Edges ──
+  EDGES.forEach(([a,b,t])=>{
+    if(!ND[a]||!ND[b])return;
+    const onP=isPathEdge(a,b);
+    s+=`<line class="edge${t==='cross'?' cross':''} ${onP?'on-path':''}" x1="${ND[a].x}" y1="${ND[a].y}" x2="${ND[b].x}" y2="${ND[b].y}"/>`;
+  });
+
+  // ── Nodes ──
+  Object.entries(ND).forEach(([id,nd])=>{
+    const st=nodeStatus(id),ht=state.hazardTypes[id];
+    const pi=state.currentPath?state.currentPath.indexOf(id):-1;
+    const isS=id===START_NODE,isE=EXITS.has(id);
+    const cx=nd.x,cy=nd.y,w=nd.w,h=nd.h;
+    s+=`<g class="node-g s-${st}" data-id="${id}" onclick="toggleHazard('${id}')">`;
+    s+=`<rect class="node-rect" x="${cx-w/2}" y="${cy-h/2}" width="${w}" height="${h}" rx="5"/>`;
+    s+=`<text class="node-lbl" x="${cx}" y="${cy+1}">${nd.l}</text>`;
+    if(isS){s+=`<rect class="badge-bg-start" x="${cx-20}" y="${cy-h/2-11}" width="40" height="13" rx="2"/>`;s+=`<text class="badge-txt" x="${cx}" y="${cy-h/2-4.5}">START</text>`;}
+    if(isE&&!ht){s+=`<rect class="badge-bg-exit" x="${cx-16}" y="${cy-h/2-11}" width="32" height="13" rx="2"/>`;s+=`<text class="badge-txt" x="${cx}" y="${cy-h/2-4.5}">EXIT</text>`;}
+    if(ht){s+=`<text class="haz-emoji" x="${cx+w/2-14}" y="${cy+1}">${hEmoji(ht)}</text>`;}
+    if(pi>=0){s+=`<circle class="step-c" cx="${cx-w/2+11}" cy="${cy+h/2-11}" r="9"/>`;s+=`<text class="step-n" x="${cx-w/2+11}" y="${cy+h/2-11}">${pi+1}</text>`;}
+    s+=`</g>`;
+  });
+
+  s+=`</svg>`;
+  document.getElementById('svg-zoom-wrap').innerHTML=s;
+}
+
+// ── ANIMATED BACKGROUND CANVAS ────────────────────────────
+function initBgCanvas() {
+  const canvas = document.getElementById('bg-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Particles (floating orbs)
+  const particles = [];
+  const PARTICLE_COUNT = 55;
+
+  function resize() {
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Seed particles
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.8 + 0.3,
+      vx: (Math.random() - 0.5) * 0.22,
+      vy: (Math.random() - 0.5) * 0.18,
+      alpha: Math.random() * 0.5 + 0.05,
+      pulse: Math.random() * Math.PI * 2,
+      pulseSpeed: 0.008 + Math.random() * 0.012,
+      color: Math.random() > 0.6 ? [0,212,255] : [255,255,255],
+    });
+  }
+
+  // Moving scan-lines
+  let scanY = 0;
+
+  function draw() {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Deep space base
+    const grad = ctx.createRadialGradient(W*0.5, H*0.4, 0, W*0.5, H*0.4, Math.max(W,H)*0.75);
+    grad.addColorStop(0, 'rgba(5,15,40,0.92)');
+    grad.addColorStop(0.5,'rgba(4,10,28,0.95)');
+    grad.addColorStop(1,  'rgba(2,5,14,0.98)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid lines (white, very faint)
+    ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+    ctx.lineWidth = 1;
+    const GRID = 60;
+    for(let x=0; x<W; x+=GRID){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0; y<H; y+=GRID){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    // Diagonal cross-grid (adds depth)
+    ctx.strokeStyle = 'rgba(255,255,255,0.012)';
+    for(let i=-H; i<W+H; i+=80){
+      ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i+H,H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i-H,H); ctx.stroke();
+    }
+
+    // Moving scan line
+    scanY = (scanY + 0.4) % H;
+    const scanGrad = ctx.createLinearGradient(0, scanY-30, 0, scanY+30);
+    scanGrad.addColorStop(0, 'rgba(255,255,255,0)');
+    scanGrad.addColorStop(0.5,'rgba(255,255,255,0.04)');
+    scanGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = scanGrad;
+    ctx.fillRect(0, scanY-30, W, 60);
+
+    // Second slower scan
+    const scan2Y = (scanY * 0.3 + H * 0.5) % H;
+    const sg2 = ctx.createLinearGradient(0, scan2Y-20, 0, scan2Y+20);
+    sg2.addColorStop(0, 'rgba(0,212,255,0)');
+    sg2.addColorStop(0.5,'rgba(0,212,255,0.025)');
+    sg2.addColorStop(1, 'rgba(0,212,255,0)');
+    ctx.fillStyle = sg2;
+    ctx.fillRect(0, scan2Y-20, W, 40);
+
+    // Particles
+    particles.forEach(p => {
+      p.pulse += p.pulseSpeed;
+      p.x += p.vx; p.y += p.vy;
+      if(p.x < -5) p.x = W+5;
+      if(p.x > W+5) p.x = -5;
+      if(p.y < -5) p.y = H+5;
+      if(p.y > H+5) p.y = -5;
+
+      const a = p.alpha * (0.5 + 0.5 * Math.sin(p.pulse));
+      const [r,g,b] = p.color;
+      const grd = ctx.createRadialGradient(p.x,p.y,0, p.x,p.y, p.r*3.5);
+      grd.addColorStop(0, `rgba(${r},${g},${b},${a})`);
+      grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r*3.5, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // Subtle corner vignette
+    const vig = ctx.createRadialGradient(W/2,H/2,H*0.3, W/2,H/2,H*0.9);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0,0,W,H);
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function renderRoutePanel(){
+  const el=document.getElementById('route-pane');if(!el)return;
+  if(state.evacuationFailed){el.innerHTML=`<div class="r-fail"><div class="r-fail-icon">☠</div><div class="r-fail-title">EVACUATION FAILED</div><div class="r-fail-sub">No safe exit from Control Room.<br>All routes are blocked.</div><button class="btn-sm btn-danger" style="margin-top:8px" onclick="resetAll()">🔄 Clear Hazards</button></div>`;setStatus('EVACUATION FAILED','danger');return;}
+  if(!state.currentPath){el.innerHTML=`<div class="r-idle"><div class="r-idle-icon">🛡</div><p>Building clear.</p><p class="r-idle-sub">Click any room to simulate a hazard.</p></div>`;setStatus('SYSTEM READY','clear');return;}
+  const p=state.currentPath,exitId=p[p.length-1],exitLabel=NODES[exitId]?.label||exitId,hops=p.length-1;
+  const steps=p.map((id,i)=>{const nd=NODES[id];const isLast=i===p.length-1;const icon=id===START_NODE?'🎯':EXITS.has(id)?'🚪':NODES[id]?.type==='stair'?'🪜':'→';return`<div class="r-step${isLast?' r-step-exit':''}" style="animation-delay:${i*.06}s"><span class="r-step-icon">${icon}</span><span class="r-step-label">${nd?.label||id}</span><span class="r-step-floor">${FLOORS[nd?.floor]?.label||''}</span>${!isLast?'<div class="r-step-connector"></div>':''}</div>`;}).join('');
+  const alts=findAlts(3);let altH='';
+  if(alts.length>1){altH=`<div class="alt-block"><div class="alt-title">Alternative Routes</div>${alts.slice(1).map((alt,i)=>{const ae=NODES[alt[alt.length-1]]?.label||alt[alt.length-1];return`<div class="alt-row"><span class="alt-n">${i+2}</span><span class="alt-path">${alt.map(id=>NODES[id]?.label||id).join(' → ')}</span><span class="alt-exit">→${ae}</span></div>`;}).join('')}</div>`;}
+  el.innerHTML=`<div><div class="r-badge">✓ ROUTE FOUND</div><div class="r-meta">${hops} step${hops!==1?'s':''} → <strong>${exitLabel}</strong></div><div class="r-steps">${steps}</div>${altH}</div>`;
+  setStatus('EVACUATE → '+exitLabel,'safe');
+}
+function setStatus(m,c){const el=document.getElementById('status-text');if(!el)return;el.textContent=m;el.className='stxt '+c;}
+function renderNodeList(){const el=document.getElementById('node-list');if(!el)return;const fo=['GF','F1','F2','F3','B1'];let h='';for(const f of fo){const ns=Object.entries(NODES).filter(([,n])=>n.floor===f);if(!ns.length)continue;h+=`<div class="nl-floor">${FLOORS[f].label}</div>`;for(const [id,nd] of ns){const hz=state.hazardNodes.has(id);const iE=EXITS.has(id),iS=id===START_NODE;const ic=iS?'🎯':iE?'🚪':nd.type==='stair'?'🪜':nd.type==='corridor'?'🛤':'🏢';h+=`<div class="nl-item ${hz?'haz':''} ${iE?'exit-node':''} ${iS?'start-node':''}" onclick="toggleHazard('${id}')"><span class="nl-icon">${ic}</span><span class="nl-name">${nd.label}</span>${hz?`<span class="nl-hbadge">${hEmoji(state.hazardTypes[id])}</span>`:''}</div>`;}}el.innerHTML=h;}
+function startTimer(){if(state.timerRunning)return;state.timerRunning=true;state.timerInterval=setInterval(()=>{state.timerSeconds++;updateTimer();},1000);document.getElementById('btn-timer').textContent='⏸ Pause';}
+function stopTimer(){clearInterval(state.timerInterval);state.timerRunning=false;const b=document.getElementById('btn-timer');if(b)b.textContent='▶ Start';}
+function toggleTimer(){state.timerRunning?stopTimer():startTimer();}
+function resetTimer(){stopTimer();state.timerSeconds=0;updateTimer();}
+function updateTimer(){const m=String(Math.floor(state.timerSeconds/60)).padStart(2,'0'),s=String(state.timerSeconds%60).padStart(2,'0');const el=document.getElementById('timer-val');if(!el)return;el.textContent=`${m}:${s}`;el.className='timer-val'+(state.timerSeconds>=300?' crit':state.timerSeconds>=120?' warn':'');}
+function logAudit(msg,type='info'){const el=document.getElementById('audit-log');if(!el)return;const t=new Date().toLocaleTimeString();const d=document.createElement('div');d.className='alog '+type;d.innerHTML=`<span class="alog-t">${t}</span><span class="alog-m">${msg}</span>`;el.prepend(d);while(el.children.length>60)el.removeChild(el.lastChild);}
+function showToast(msg,type='info'){const c=document.getElementById('toasts');if(!c)return;const d=document.createElement('div');d.className='toast '+type;d.textContent=msg;c.appendChild(d);setTimeout(()=>d.classList.add('show'),10);setTimeout(()=>{d.classList.remove('show');setTimeout(()=>d.remove(),300);},3000);}
+function switchTab(id,btn){document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));document.getElementById('pane-'+id).classList.add('on');btn.classList.add('on');}
+function initBuilder(){state.builder={nodes:{},edges:[],linkSource:null};renderBuilder();}
+function renderBuilder(){const svg=document.getElementById('bcanvas');const r=svg.getBoundingClientRect();const W=r.width||800,H=r.height||500;let o=`<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0L0 0 0 40" fill="none" stroke="rgba(0,255,136,.07)" stroke-width="1"/></pattern></defs><rect width="${W}" height="${H}" fill="url(#g)"/>`;for(const [a,b] of state.builder.edges){const na=state.builder.nodes[a],nb=state.builder.nodes[b];if(!na||!nb)continue;o+=`<line x1="${na.x}" y1="${na.y}" x2="${nb.x}" y2="${nb.y}" stroke="rgba(0,255,136,.45)" stroke-width="2" stroke-dasharray="6,3"/>`;}for(const [id,nd] of Object.entries(state.builder.nodes)){const iS=state.builder.linkSource===id;o+=`<g class="b-node" data-id="${id}" style="cursor:pointer"><circle cx="${nd.x}" cy="${nd.y}" r="26" fill="${iS?'rgba(255,200,0,.25)':'rgba(17,24,39,.9)'}" stroke="${iS?'#ffc800':'rgba(0,212,255,.4)'}" stroke-width="${iS?2.5:1.5}"/><text x="${nd.x}" y="${nd.y-5}" text-anchor="middle" fill="#c8ddf0" font-size="9" font-family="Space Mono">${nd.label}</text><text x="${nd.x}" y="${nd.y+8}" text-anchor="middle" fill="rgba(0,255,136,.6)" font-size="8" font-family="Space Mono">${nd.type}</text></g>`;}svg.innerHTML=o;svg.querySelectorAll('.b-node').forEach(el=>{el.addEventListener('click',e=>{e.stopPropagation();onBNodeClick(el.dataset.id);});});runBuilderBFS();}
+function onBCanvasClick(e){if(e.target.closest('.b-node'))return;const mode=document.getElementById('b-mode').value;if(mode!=='add')return;const r=e.currentTarget.getBoundingClientRect();const x=e.clientX-r.left,y=e.clientY-r.top;const label=document.getElementById('b-label').value.trim()||'Node'+(Object.keys(state.builder.nodes).length+1);const type=document.getElementById('b-type').value;const id='B_'+Date.now();state.builder.nodes[id]={label,type,x,y};document.getElementById('b-label').value='';renderBuilder();}
+function onBNodeClick(id){const mode=document.getElementById('b-mode').value;if(mode==='link'){if(!state.builder.linkSource){state.builder.linkSource=id;showToast('Click another node to link','info');}else if(state.builder.linkSource!==id){const a=state.builder.linkSource;const ex=state.builder.edges.some(([x,y])=>(x===a&&y===id)||(x===id&&y===a));if(!ex){state.builder.edges.push([a,id]);showToast('Linked!','ok');}state.builder.linkSource=null;}}else if(mode==='del'){delete state.builder.nodes[id];state.builder.edges=state.builder.edges.filter(([a,b])=>a!==id&&b!==id);state.builder.linkSource=null;}else{state.builder.linkSource=state.builder.linkSource===id?null:id;}renderBuilder();}
+function runBuilderBFS(){const{nodes,edges}=state.builder;const ids=Object.keys(nodes);const adj={};ids.forEach(id=>adj[id]=[]);edges.forEach(([a,b])=>{if(adj[a])adj[a].push(b);if(adj[b])adj[b].push(a);});const starts=ids.filter(id=>nodes[id].type==='control');const exits=new Set(ids.filter(id=>nodes[id].type==='exit'));const res=document.getElementById('b-result');if(!res)return;if(!starts.length||!exits.size){res.innerHTML='<span class="b-hint">Add a Control (start) and Exit node.</span>';return;}const p=bfs(adj,exits,starts[0],new Set(),new Set());res.innerHTML=p?`<span class="b-ok">✓ ${p.map(id=>nodes[id]?.label||id).join(' → ')}</span>`:`<span class="b-fail">✗ No path found</span>`;}
+
+function init(){
+  try{
+    document.getElementById('hazard-type').addEventListener('change',e=>state.selectedHazard=e.target.value);
+    document.querySelectorAll('[data-preset]').forEach(btn=>btn.addEventListener('click',()=>applyPreset(btn.dataset.preset)));
+    document.getElementById('btn-timer').addEventListener('click',toggleTimer);
+    document.getElementById('btn-timer-r').addEventListener('click',resetTimer);
+    document.getElementById('btn-builder-open').addEventListener('click',()=>{
+      document.getElementById('builder-modal').classList.add('on');
+      setTimeout(()=>{
+        initBuilder();
+        document.getElementById('bcanvas').addEventListener('click',onBCanvasClick);
+      },50);
+    });
+    document.getElementById('btn-builder-close').addEventListener('click',()=>document.getElementById('builder-modal').classList.remove('on'));
+    document.getElementById('b-mode').addEventListener('change',()=>{state.builder.linkSource=null;renderBuilder();});
+    _recalc();renderMap();renderNodeList();updateTimer();
+    initBgCanvas();
+    logAudit('🟢 System initialised — Control Room is start point','ok');
+    logAudit('ℹ Click any room on the map to toggle a hazard','info');
+  }catch(err){console.error('Init error:',err);}
+  finally{setTimeout(()=>{document.getElementById('loading').classList.add('gone');document.getElementById('app').classList.add('on');},1300);}
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
